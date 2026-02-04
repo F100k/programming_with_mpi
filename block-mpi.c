@@ -17,8 +17,7 @@ int read_matrix_flat(const char *filename, float **matrix, int *rows, int *cols)
     return 0;
 }
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     int rank, size;
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -33,18 +32,13 @@ int main(int argc, char *argv[])
         if (read_matrix_flat("/home/jatup/Desktop/HPC/LAB_lecture2_2025/matAsmall.txt", &A, &rows, &cols) != 0 ||
             read_matrix_flat("/home/jatup/Desktop/HPC/LAB_lecture2_2025/matBsmall.txt", &B, &rows, &cols) != 0 ||
             read_matrix_flat("/home/jatup/Desktop/HPC/LAB_lecture2_2025/solutionsmall.txt", &Result, &rows, &cols) != 0) {
-            printf("error address\n");
+            printf("Error reading matrix files\n");
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
-
-        for (int p = 1; p < size; p++) {
-            MPI_Send(&rows, 1, MPI_INT, p, 10, MPI_COMM_WORLD);
-            MPI_Send(&cols, 1, MPI_INT, p, 11, MPI_COMM_WORLD);
-        }
-    } else {
-        MPI_Recv(&rows, 1, MPI_INT, 0, 10, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(&cols, 1, MPI_INT, 0, 11, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
+
+    MPI_Bcast(&rows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&cols, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     int base = rows / size;
     int rem  = rows % size;
@@ -63,8 +57,8 @@ int main(int argc, char *argv[])
             int rows_p = base + (p < rem ? 1 : 0);
             int count  = rows_p * cols;
 
-            MPI_Send(A + offset * cols, count, MPI_FLOAT, p, 20, MPI_COMM_WORLD);
-            MPI_Send(B + offset * cols, count, MPI_FLOAT, p, 21, MPI_COMM_WORLD);
+            MPI_Send(A + offset * cols, count, MPI_FLOAT, p, 0, MPI_COMM_WORLD);
+            MPI_Send(B + offset * cols, count, MPI_FLOAT, p, 1, MPI_COMM_WORLD);
 
             offset += rows_p;
         }
@@ -74,8 +68,8 @@ int main(int argc, char *argv[])
             B_local[i] = B[i];
         }
     } else {
-        MPI_Recv(A_local, local_size, MPI_FLOAT, 0, 20, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(B_local, local_size, MPI_FLOAT, 0, 21, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(A_local, local_size, MPI_FLOAT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(B_local, local_size, MPI_FLOAT, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
     }
 
     for (int i = 0; i < local_size; i++)
@@ -94,7 +88,7 @@ int main(int argc, char *argv[])
             int count  = rows_p * cols;
 
             MPI_Recv(C + offset * cols, count,
-                     MPI_FLOAT, p, 30, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                     MPI_FLOAT, p, 2, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
             offset += rows_p;
         }
@@ -105,21 +99,20 @@ int main(int argc, char *argv[])
                 mismatch++;
 
         if (mismatch == 0)
-            printf("Block Done\n");
+            printf("Blocking MPI Done\n");
         else
-            printf("Blocking MPI : mismatches = %d\n", mismatch);
+            printf("Blocking MPI mismatches = %d\n", mismatch);
     } else {
-        MPI_Send(C_local, local_size, MPI_FLOAT, 0, 30, MPI_COMM_WORLD);
+        MPI_Send(C_local, local_size, MPI_FLOAT, 0, 2, MPI_COMM_WORLD);
     }
 
     double end = MPI_Wtime();
     if (rank == 0)
-        printf("Execution time: %f seconds\n", end - start);
+        printf("Blocking time: %f sec\n", end - start);
 
     free(A_local);
     free(B_local);
     free(C_local);
-
     if (rank == 0) {
         free(A);
         free(B);
